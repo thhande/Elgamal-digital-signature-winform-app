@@ -1,0 +1,49 @@
+## Thư mục build và biên dịch (Quan trọng nhất)
+[Bb]in/
+[Oo]bj/
+[Xx]64/
+[Xx]86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Log]s/
+[Tt]arget/
+
+## File cấu hình cá nhân của Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## File kết quả Test và Code Coverage
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+## Thư mục ReSharper hoặc các Extension khác (nếu có)
+_ReSharper*/
+*.[ReS]harper
+*.DotSettings.user
+
+## Thư mục packages của NuGet (Nên để NuGet tự restore khi mở máy khác)
+packages/
+*.nuget.props
+*.nuget.targets
+
+## File log và file tạm của hệ điều hành / VS
+*.log
+*.cache
+*.tmp
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+## ClickOnce deployment (Nếu bạn dùng tính năng Publish của WinForms)
+*.publish/
+
+## Thư mục sinh ra bởi các công cụ nâng cao (như sinh code tự động, định dạng)
+.vs-code/
+.idea/
+*.openeddf
