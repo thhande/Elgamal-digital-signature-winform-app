@@ -7,15 +7,17 @@ namespace ElGamalApp
     public partial class Form1 : Form
     {
         private ElGamal _elgamal = new ElGamal();
-        private Key _currentKey = null;
-        private Signature _currentSignature = null;
 
         public Form1()
         {
             InitializeComponent();
         }
 
-        // ── Step 1: Generate Keys ────────────────────────────────────────
+        // ════════════════════════════════════════════════════════════
+        //  SIGNER TAB
+        // ════════════════════════════════════════════════════════════
+
+        // ── Generate Keys ────────────────────────────────────────────
         private void btnGenerateKey_Click(object sender, EventArgs e)
         {
             int p, g;
@@ -34,45 +36,53 @@ namespace ElGamalApp
 
             if (g < 2 || g >= p)
             {
-                ShowStatus("g must be between 2 and p-1.", false);
+                ShowStatus(string.Format("g must be between 2 and {0}.", p - 1), false);
                 return;
             }
 
             try
             {
-                _currentKey = _elgamal.GenerateKey(p, g);
-                _currentSignature = null;
+                Key key = _elgamal.GenerateKey(p, g);
 
-                txtPrivateKey.Text = _currentKey.X.ToString();
-                txtPublicKey.Text = _currentKey.Y.ToString();
+                txtPrivateKey.Text = key.X.ToString();
+                txtPublicKeyOut.Text = key.Y.ToString();
 
                 lblKeyFormula.Text = string.Format(
                     "y = g^x mod p  →  {0}^{1} mod {2} = {3}",
-                    g, _currentKey.X, p, _currentKey.Y
+                    g, key.X, p, key.Y
                 );
 
-                // reset downstream panels
-                txtSignature.Clear();
-                txtVerifyMessage.Clear();
-                txtVerifyR.Clear();
-                txtVerifyS.Clear();
-                ClearVerifyResult();
+                // store full key for signing
+                txtSignKeyP.Text = p.ToString();
+                txtSignKeyG.Text = g.ToString();
+                txtSignKeyX.Text = key.X.ToString();
 
-                ShowStatus("Keys generated successfully.", true);
+                txtSignature.Clear();
                 grpSign.Enabled = true;
+                ShowStatus("Keys generated. Share p, g, y with the verifier — keep x secret.", true);
             }
             catch (Exception ex)
             {
-                ShowStatus("Error generating keys: " + ex.Message, false);
+                ShowStatus("Error: " + ex.Message, false);
             }
         }
 
-        // ── Step 2: Sign ────────────────────────────────────────────────
+        // ── Sign ─────────────────────────────────────────────────────
         private void btnSign_Click(object sender, EventArgs e)
         {
-            if (_currentKey == null)
+            int p, g, x;
+
+            if (!int.TryParse(txtSignKeyP.Text, out p) ||
+                !int.TryParse(txtSignKeyG.Text, out g) ||
+                !int.TryParse(txtSignKeyX.Text, out x))
             {
-                ShowStatus("Generate keys first.", false);
+                ShowStatus("Please enter valid integers for p, g, and x.", false);
+                return;
+            }
+
+            if (p < 5 || !IsPrime(p))
+            {
+                ShowStatus(string.Format("{0} is not a valid prime.", p), false);
                 return;
             }
 
@@ -85,41 +95,45 @@ namespace ElGamalApp
 
             try
             {
-                _currentSignature = _elgamal.Sign(message, _currentKey);
+                Key key = new Key { P = p, G = g, X = x, Y = 0 };
+                Signature sig = _elgamal.Sign(message, key);
 
-                txtSignature.Text = string.Format("R = {0}   |   S = {1}",
-                    _currentSignature.R, _currentSignature.S);
-
-                // auto-fill verify panel
-                txtVerifyMessage.Text = message;
-                txtVerifyR.Text = _currentSignature.R.ToString();
-                txtVerifyS.Text = _currentSignature.S.ToString();
-
-                ClearVerifyResult();
-                ShowStatus("Message signed successfully.", true);
-                grpVerify.Enabled = true;
+                txtSignature.Text = string.Format("R = {0}   |   S = {1}", sig.R, sig.S);
+                ShowStatus(string.Format("Signed. Send the verifier: message, R={0}, S={1}, p={2}, g={3}, y={4}",
+                    sig.R, sig.S, p, g, txtPublicKeyOut.Text), true);
             }
             catch (Exception ex)
             {
-                ShowStatus("Error signing message: " + ex.Message, false);
+                ShowStatus("Error signing: " + ex.Message, false);
             }
         }
 
-        // ── Step 3: Verify ──────────────────────────────────────────────
+        // ════════════════════════════════════════════════════════════
+        //  VERIFIER TAB
+        // ════════════════════════════════════════════════════════════
+
         private void btnVerify_Click(object sender, EventArgs e)
         {
-            if (_currentKey == null)
+            int p, g, y, r, s;
+
+            if (!int.TryParse(txtVerifyP.Text, out p) ||
+                !int.TryParse(txtVerifyG.Text, out g) ||
+                !int.TryParse(txtVerifyY.Text, out y))
             {
-                ShowStatus("Generate keys first.", false);
+                ShowStatus("Please enter valid integers for p, g, and y.", false);
+                return;
+            }
+
+            if (p < 5 || !IsPrime(p))
+            {
+                ShowStatus(string.Format("{0} is not a valid prime.", p), false);
                 return;
             }
 
             string message = txtVerifyMessage.Text.Trim();
-            int r, s;
-
             if (string.IsNullOrEmpty(message))
             {
-                ShowStatus("Please enter a message to verify.", false);
+                ShowStatus("Please enter the message to verify.", false);
                 return;
             }
 
@@ -131,22 +145,23 @@ namespace ElGamalApp
 
             try
             {
+                Key key = new Key { P = p, G = g, X = 0, Y = y };
                 Signature sig = new Signature(r, s);
-                bool valid = _elgamal.Verify(message, sig, _currentKey);
+                bool valid = _elgamal.Verify(message, sig, key);
 
                 if (valid)
                 {
                     panelVerifyResult.BackColor = Color.FromArgb(220, 245, 220);
                     lblVerifyResult.ForeColor = Color.FromArgb(30, 120, 50);
                     lblVerifyResult.Text = "✔  Signature VALID — message is authentic";
-                    ShowStatus("Verification complete: valid.", true);
+                    ShowStatus("Verification passed.", true);
                 }
                 else
                 {
                     panelVerifyResult.BackColor = Color.FromArgb(250, 220, 220);
                     lblVerifyResult.ForeColor = Color.FromArgb(160, 30, 30);
                     lblVerifyResult.Text = "✖  Signature INVALID — message may be tampered";
-                    ShowStatus("Verification complete: invalid.", false);
+                    ShowStatus("Verification failed.", false);
                 }
 
                 panelVerifyResult.Visible = true;
@@ -157,30 +172,36 @@ namespace ElGamalApp
             }
         }
 
-        // ── Reset ────────────────────────────────────────────────────────
+        // ── Reset ────────────────────────────────────────────────────
         private void btnReset_Click(object sender, EventArgs e)
         {
-            _currentKey = null;
-            _currentSignature = null;
-
+            // signer tab
             txtP.Text = "23";
             txtG.Text = "5";
             txtPrivateKey.Clear();
-            txtPublicKey.Clear();
+            txtPublicKeyOut.Clear();
             lblKeyFormula.Text = "";
+            txtSignKeyP.Clear();
+            txtSignKeyG.Clear();
+            txtSignKeyX.Clear();
             txtMessage.Clear();
             txtSignature.Clear();
+            grpSign.Enabled = false;
+
+            // verifier tab
+            txtVerifyP.Clear();
+            txtVerifyG.Clear();
+            txtVerifyY.Clear();
             txtVerifyMessage.Clear();
             txtVerifyR.Clear();
             txtVerifyS.Clear();
-            ClearVerifyResult();
+            panelVerifyResult.Visible = false;
+            lblVerifyResult.Text = "";
 
-            grpSign.Enabled = false;
-            grpVerify.Enabled = false;
             ShowStatus("Reset complete.", true);
         }
 
-        // ── Helpers ──────────────────────────────────────────────────────
+        // ── Helpers ──────────────────────────────────────────────────
         private void ShowStatus(string message, bool success)
         {
             lblStatus.Text = message;
@@ -189,23 +210,14 @@ namespace ElGamalApp
                 : Color.FromArgb(160, 30, 30);
         }
 
-        // Trial-division primality check — sufficient for small int values
         private bool IsPrime(int n)
         {
             if (n < 2) return false;
             if (n == 2) return true;
             if (n % 2 == 0) return false;
             for (int i = 3; i * i <= n; i += 2)
-            {
                 if (n % i == 0) return false;
-            }
             return true;
-        }
-
-        private void ClearVerifyResult()
-        {
-            panelVerifyResult.Visible = false;
-            lblVerifyResult.Text = "";
         }
     }
 }
