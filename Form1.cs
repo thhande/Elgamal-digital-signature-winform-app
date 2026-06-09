@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Drawing;
+using System.Numerics;
+using System.Security.Cryptography;
 using System.Windows.Forms;
 
 namespace ElGamalApp
@@ -17,12 +19,12 @@ namespace ElGamalApp
         //  SIGNER TAB
         // ════════════════════════════════════════════════════════════
 
-        // ── Generate Keys ────────────────────────────────────────────
         private void btnGenerateKey_Click(object sender, EventArgs e)
         {
-            int p, g;
+            BigInteger p, g;
 
-            if (!int.TryParse(txtP.Text, out p) || !int.TryParse(txtG.Text, out g))
+            if (!BigInteger.TryParse(txtP.Text.Trim(), out p) ||
+                !BigInteger.TryParse(txtG.Text.Trim(), out g))
             {
                 ShowStatus("Please enter valid integers for p and g.", false);
                 return;
@@ -30,7 +32,7 @@ namespace ElGamalApp
 
             if (p < 5 || !IsPrime(p))
             {
-                ShowStatus(string.Format("{0} is not a valid prime. Try: 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47.", p), false);
+                ShowStatus(string.Format("{0} is not a valid prime.", p), false);
                 return;
             }
 
@@ -47,12 +49,11 @@ namespace ElGamalApp
                 txtPrivateKey.Text = key.X.ToString();
                 txtPublicKeyOut.Text = key.Y.ToString();
 
-                lblKeyFormula.Text = string.Format(
-                    "y = g^x mod p  →  {0}^{1} mod {2} = {3}",
-                    g, key.X, p, key.Y
-                );
+                // show shortened formula if numbers are large
+                string px = key.X.ToString();
+                string shortX = px.Length > 20 ? px.Substring(0, 20) + "..." : px;
+                lblKeyFormula.Text = string.Format("y = g^x mod p  →  computed ({0}-digit result)", key.Y.ToString().Length);
 
-                // store full key for signing
                 txtSignKeyP.Text = p.ToString();
                 txtSignKeyG.Text = g.ToString();
                 txtSignKeyX.Text = key.X.ToString();
@@ -67,14 +68,13 @@ namespace ElGamalApp
             }
         }
 
-        // ── Sign ─────────────────────────────────────────────────────
         private void btnSign_Click(object sender, EventArgs e)
         {
-            int p, g, x;
+            BigInteger p, g, x;
 
-            if (!int.TryParse(txtSignKeyP.Text, out p) ||
-                !int.TryParse(txtSignKeyG.Text, out g) ||
-                !int.TryParse(txtSignKeyX.Text, out x))
+            if (!BigInteger.TryParse(txtSignKeyP.Text.Trim(), out p) ||
+                !BigInteger.TryParse(txtSignKeyG.Text.Trim(), out g) ||
+                !BigInteger.TryParse(txtSignKeyX.Text.Trim(), out x))
             {
                 ShowStatus("Please enter valid integers for p, g, and x.", false);
                 return;
@@ -99,8 +99,7 @@ namespace ElGamalApp
                 Signature sig = _elgamal.Sign(message, key);
 
                 txtSignature.Text = string.Format("R = {0}   |   S = {1}", sig.R, sig.S);
-                ShowStatus(string.Format("Signed. Send the verifier: message, R={0}, S={1}, p={2}, g={3}, y={4}",
-                    sig.R, sig.S, p, g, txtPublicKeyOut.Text), true);
+                ShowStatus("Message signed. Send the verifier: message, R, S, p, g, y.", true);
             }
             catch (Exception ex)
             {
@@ -114,11 +113,11 @@ namespace ElGamalApp
 
         private void btnVerify_Click(object sender, EventArgs e)
         {
-            int p, g, y, r, s;
+            BigInteger p, g, y, r, s;
 
-            if (!int.TryParse(txtVerifyP.Text, out p) ||
-                !int.TryParse(txtVerifyG.Text, out g) ||
-                !int.TryParse(txtVerifyY.Text, out y))
+            if (!BigInteger.TryParse(txtVerifyP.Text.Trim(), out p) ||
+                !BigInteger.TryParse(txtVerifyG.Text.Trim(), out g) ||
+                !BigInteger.TryParse(txtVerifyY.Text.Trim(), out y))
             {
                 ShowStatus("Please enter valid integers for p, g, and y.", false);
                 return;
@@ -137,7 +136,8 @@ namespace ElGamalApp
                 return;
             }
 
-            if (!int.TryParse(txtVerifyR.Text, out r) || !int.TryParse(txtVerifyS.Text, out s))
+            if (!BigInteger.TryParse(txtVerifyR.Text.Trim(), out r) ||
+                !BigInteger.TryParse(txtVerifyS.Text.Trim(), out s))
             {
                 ShowStatus("R and S must be valid integers.", false);
                 return;
@@ -175,7 +175,6 @@ namespace ElGamalApp
         // ── Reset ────────────────────────────────────────────────────
         private void btnReset_Click(object sender, EventArgs e)
         {
-            // signer tab
             txtP.Text = "23";
             txtG.Text = "5";
             txtPrivateKey.Clear();
@@ -188,7 +187,6 @@ namespace ElGamalApp
             txtSignature.Clear();
             grpSign.Enabled = false;
 
-            // verifier tab
             txtVerifyP.Clear();
             txtVerifyG.Clear();
             txtVerifyY.Clear();
@@ -202,6 +200,7 @@ namespace ElGamalApp
         }
 
         // ── Helpers ──────────────────────────────────────────────────
+
         private void ShowStatus(string message, bool success)
         {
             lblStatus.Text = message;
@@ -210,13 +209,47 @@ namespace ElGamalApp
                 : Color.FromArgb(160, 30, 30);
         }
 
-        private bool IsPrime(int n)
+        // Miller-Rabin primality test — works correctly for large BigInteger primes
+        private bool IsPrime(BigInteger n, int witnesses = 10)
         {
             if (n < 2) return false;
-            if (n == 2) return true;
+            if (n == 2 || n == 3) return true;
             if (n % 2 == 0) return false;
-            for (int i = 3; i * i <= n; i += 2)
-                if (n % i == 0) return false;
+
+            // write n-1 as 2^r * d
+            BigInteger d = n - 1;
+            int r = 0;
+            while (d % 2 == 0) { d /= 2; r++; }
+
+            using (var rng = new RNGCryptoServiceProvider())
+            {
+                for (int i = 0; i < witnesses; i++)
+                {
+                    // pick random a in [2, n-2]
+                    BigInteger a;
+                    byte[] bytes = new byte[n.ToByteArray().Length + 1];
+                    do
+                    {
+                        rng.GetBytes(bytes);
+                        bytes[bytes.Length - 1] = 0x00;
+                        a = new BigInteger(bytes) % (n - 3) + 2;
+                    }
+                    while (a < 2);
+
+                    BigInteger x = BigInteger.ModPow(a, d, n);
+                    if (x == 1 || x == n - 1) continue;
+
+                    bool composite = true;
+                    for (int j = 0; j < r - 1; j++)
+                    {
+                        x = BigInteger.ModPow(x, 2, n);
+                        if (x == n - 1) { composite = false; break; }
+                    }
+
+                    if (composite) return false;
+                }
+            }
+
             return true;
         }
     }

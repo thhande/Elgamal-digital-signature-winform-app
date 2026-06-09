@@ -4,24 +4,24 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
-
+using System.Numerics;
 namespace ElGamalApp
 {
 
     class Key
     {
-        public int P { get; set; }
-        public int G { get; set; }
-        public int X { get; set; }
-        public int Y { get; set; }
+        public BigInteger P { get; set; }   // prime modulus
+        public BigInteger G { get; set; }   // generator
+        public BigInteger X { get; set; }   // private key (secret)
+        public BigInteger Y { get; set; }   // public key: Y = G^X mod P
     }
 
     class Signature
     {
-        public int R { get; private set; }
-        public int S { get; private set; }
+        public BigInteger R { get; private set; }
+        public BigInteger S { get; private set; }
 
-        public Signature(int r, int s)
+        public Signature(BigInteger r, BigInteger s)
         {
             this.R = r;
             this.S = s;
@@ -35,95 +35,107 @@ namespace ElGamalApp
 
     class ElGamal
     {
-        private Random _rng = new Random();
-
-        public Key GenerateKey(int p, int g)
+        // ── Key Generation ───────────────────────────────────────────────
+        public Key GenerateKey(BigInteger p, BigInteger g)
         {
-            int x = _rng.Next(1, p - 1);
-            int y = ModPow(g, x, p);
+            // x must be in [1, p-2]
+            BigInteger x = RandomInRange(1, p - 2);
+
+            // y = g^x mod p
+            BigInteger y = BigInteger.ModPow(g, x, p);
 
             return new Key { P = p, G = g, X = x, Y = y };
         }
 
+        // ── Signing ──────────────────────────────────────────────────────
         public Signature Sign(string message, Key key)
         {
-            int p = key.P;
-            int g = key.G;
-            int x = key.X;
-            int h = HashMessage(message, p);
+            BigInteger p = key.P;
+            BigInteger g = key.G;
+            BigInteger x = key.X;
+            BigInteger h = HashMessage(message, p);
 
-            int r, s, k;
+            BigInteger r, s, k;
 
+            int attempts = 0;
             do
             {
-                do { k = _rng.Next(1, p - 1); }
-                while (GCD(k, p - 1) != 1);
+                // k must be random in [1, p-2] and coprime with (p-1)
+                do
+                {
+                    k = RandomInRange(1, p - 2);
+                }
+                while (BigInteger.GreatestCommonDivisor(k, p - 1) != 1);
 
-                r = ModPow(g, k, p);
+                // r = g^k mod p
+                r = BigInteger.ModPow(g, k, p);
 
-                long kInv = ModInverse(k, p - 1);
-                long sLong = (kInv * ((long)(h - (long)x * r % (p - 1)) % (p - 1) + (p - 1))) % (p - 1);
-                s = (int)sLong;
+                // s = k^-1 * (h - x*r) mod (p-1)
+                BigInteger kInv = ModInverse(k, p - 1);
+                BigInteger numerator = ((h - x * r) % (p - 1) + (p - 1)) % (p - 1);
+                s = (kInv * numerator) % (p - 1);
 
-            } while (s == 0);
+                attempts++;
+            }
+            while (s == 0 && attempts < 200);
 
             return new Signature(r, s);
         }
 
+        // ── Verification ─────────────────────────────────────────────────
+        // Valid if: g^h ≡ y^r * r^s (mod p)
         public bool Verify(string message, Signature signature, Key key)
         {
-            int p = key.P;
-            int g = key.G;
-            int y = key.Y;
-            int r = signature.R;
-            int s = signature.S;
+            BigInteger p = key.P;
+            BigInteger g = key.G;
+            BigInteger y = key.Y;
+            BigInteger r = signature.R;
+            BigInteger s = signature.S;
 
             if (r <= 0 || r >= p) return false;
 
-            int h = HashMessage(message, p);
+            BigInteger h = HashMessage(message, p);
 
-            long lhs = ModPow(g, h, p);
-            long rhs = (long)ModPow(y, r, p) * ModPow(r, s, p) % p;
+            BigInteger lhs = BigInteger.ModPow(g, h, p);
+            BigInteger rhs = BigInteger.ModPow(y, r, p) * BigInteger.ModPow(r, s, p) % p;
 
             return lhs == rhs;
         }
 
-        private int HashMessage(string message, int p)
+        // ── Helpers ──────────────────────────────────────────────────────
+
+        // Maps a message string to a BigInteger hash in [1, p-1]
+        private BigInteger HashMessage(string message, BigInteger p)
         {
             using (var sha = SHA256.Create())
             {
                 byte[] bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(message));
-                long hash = Math.Abs(BitConverter.ToInt32(bytes, 0));
-                return (int)(hash % (p - 1)) + 1;
+
+                // Convert hash bytes to positive BigInteger
+                // Append 0x00 to ensure it's treated as positive
+                byte[] positiveBytes = new byte[bytes.Length + 1];
+                Array.Copy(bytes, positiveBytes, bytes.Length);
+                positiveBytes[bytes.Length] = 0x00;
+
+                BigInteger hash = new BigInteger(positiveBytes);
+                return (hash % (p - 1)) + 1;   // keep in [1, p-1]
             }
         }
 
-        private int ModPow(long b, long exp, long mod)
+        // Extended Euclidean — modular inverse of a mod m
+        private BigInteger ModInverse(BigInteger a, BigInteger m)
         {
-            long result = 1;
-            b %= mod;
-            while (exp > 0)
-            {
-                if ((exp & 1) == 1) result = result * b % mod;
-                exp >>= 1;
-                b = b * b % mod;
-            }
-            return (int)result;
-        }
-
-        private long ModInverse(long a, long m)
-        {
-            long m0 = m;
-            long x0 = 0;
-            long x1 = 1;
+            BigInteger m0 = m;
+            BigInteger x0 = 0;
+            BigInteger x1 = 1;
 
             if (m == 1) return 0;
 
             while (a > 1)
             {
-                long q = a / m;
-                long tempM = m;
-                long tempX0 = x0;
+                BigInteger q = a / m;
+                BigInteger tempM = m;
+                BigInteger tempX0 = x0;
 
                 m = a % m;
                 a = tempM;
@@ -134,9 +146,28 @@ namespace ElGamalApp
             return x1 < 0 ? x1 + m0 : x1;
         }
 
-        private int GCD(int a, int b)
+        // Cryptographically secure random BigInteger in [min, max]
+        private BigInteger RandomInRange(BigInteger min, BigInteger max)
         {
-            return b == 0 ? a : GCD(b, a % b);
+            if (min > max) throw new ArgumentException("min must be <= max");
+
+            BigInteger range = max - min + 1;
+            int byteCount = range.ToByteArray().Length;
+
+            using (var rng = new RNGCryptoServiceProvider())
+            {
+                BigInteger result;
+                byte[] bytes = new byte[byteCount + 1];
+                do
+                {
+                    rng.GetBytes(bytes);
+                    bytes[bytes.Length - 1] = 0x00; // ensure positive
+                    result = new BigInteger(bytes) % range;
+                }
+                while (result < 0);
+
+                return result + min;
+            }
         }
     }
 
