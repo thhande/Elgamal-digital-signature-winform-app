@@ -15,6 +15,7 @@ bld/
 *.user
 *.userosscache
 *.sln.docstates
+.vscode/
 
 ## File kết quả Test và Code Coverage
 TestResults/
