@@ -48,17 +48,16 @@ namespace ElGamalApp
 
                 txtPrivateKey.Text = key.X.ToString();
                 txtPublicKeyOut.Text = key.Y.ToString();
-
-                // show shortened formula if numbers are large
-                string px = key.X.ToString();
-                string shortX = px.Length > 20 ? px.Substring(0, 20) + "..." : px;
-                lblKeyFormula.Text = string.Format("y = g^x mod p  →  computed ({0}-digit result)", key.Y.ToString().Length);
+                lblKeyFormula.Text = string.Format(
+                    "y = g^x mod p  →  computed ({0}-digit result)",
+                    key.Y.ToString().Length);
 
                 txtSignKeyP.Text = p.ToString();
                 txtSignKeyG.Text = g.ToString();
                 txtSignKeyX.Text = key.X.ToString();
 
                 txtSignature.Clear();
+                btnSaveSignature.Enabled = false;
                 grpSign.Enabled = true;
                 ShowStatus("Keys generated. Share p, g, y with the verifier — keep x secret.", true);
             }
@@ -99,7 +98,8 @@ namespace ElGamalApp
                 Signature sig = _elgamal.Sign(message, key);
 
                 txtSignature.Text = string.Format("R = {0}   |   S = {1}", sig.R, sig.S);
-                ShowStatus("Message signed. Send the verifier: message, R, S, p, g, y.", true);
+                btnSaveSignature.Enabled = true;
+                ShowStatus("Message signed. Click 'Save Signature File' to export it.", true);
             }
             catch (Exception ex)
             {
@@ -107,9 +107,95 @@ namespace ElGamalApp
             }
         }
 
+        // ── Save .elg file ───────────────────────────────────────────
+        private void btnSaveSignature_Click(object sender, EventArgs e)
+        {
+            // parse R and S back out of the display text
+            // format: "R = 123   |   S = 456"
+            string sigText = txtSignature.Text;
+            BigInteger r, s;
+
+            try
+            {
+                int rStart = sigText.IndexOf("R = ") + 4;
+                int rEnd = sigText.IndexOf("   |");
+                int sStart = sigText.IndexOf("S = ") + 4;
+
+                r = BigInteger.Parse(sigText.Substring(rStart, rEnd - rStart).Trim());
+                s = BigInteger.Parse(sigText.Substring(sStart).Trim());
+            }
+            catch
+            {
+                ShowStatus("Sign the message before saving.", false);
+                return;
+            }
+
+            using (var dlg = new SaveFileDialog())
+            {
+                dlg.Title = "Save Signature File";
+                dlg.Filter = "ElGamal Signature (*.elg)|*.elg";
+                dlg.FileName = "signature";
+
+                if (dlg.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        var file = new SignatureFile
+                        {
+                            P = txtSignKeyP.Text.Trim(),
+                            G = txtSignKeyG.Text.Trim(),
+                            Y = txtPublicKeyOut.Text.Trim(),
+                            Message = txtMessage.Text.Trim(),
+                            R = r.ToString(),
+                            S = s.ToString()
+                        };
+
+                        file.SaveToFile(dlg.FileName);
+                        ShowStatus("Signature file saved: " + dlg.FileName, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowStatus("Error saving file: " + ex.Message, false);
+                    }
+                }
+            }
+        }
+
         // ════════════════════════════════════════════════════════════
         //  VERIFIER TAB
         // ════════════════════════════════════════════════════════════
+
+        // ── Load .elg file ───────────────────────────────────────────
+        private void btnLoadSignature_Click(object sender, EventArgs e)
+        {
+            using (var dlg = new OpenFileDialog())
+            {
+                dlg.Title = "Open Signature File";
+                dlg.Filter = "ElGamal Signature (*.elg)|*.elg|All Files (*.*)|*.*";
+
+                if (dlg.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        SignatureFile file = SignatureFile.LoadFromFile(dlg.FileName);
+
+                        txtVerifyP.Text = file.P;
+                        txtVerifyG.Text = file.G;
+                        txtVerifyY.Text = file.Y;
+                        txtVerifyMessage.Text = file.Message;
+                        txtVerifyR.Text = file.R;
+                        txtVerifyS.Text = file.S;
+
+                        panelVerifyResult.Visible = false;
+                        ShowStatus("File loaded. Click Verify to check the signature.", true);
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowStatus("Error loading file: " + ex.Message, false);
+                    }
+                }
+            }
+        }
 
         private void btnVerify_Click(object sender, EventArgs e)
         {
@@ -185,6 +271,7 @@ namespace ElGamalApp
             txtSignKeyX.Clear();
             txtMessage.Clear();
             txtSignature.Clear();
+            btnSaveSignature.Enabled = false;
             grpSign.Enabled = false;
 
             txtVerifyP.Clear();
@@ -200,7 +287,6 @@ namespace ElGamalApp
         }
 
         // ── Helpers ──────────────────────────────────────────────────
-
         private void ShowStatus(string message, bool success)
         {
             lblStatus.Text = message;
@@ -209,14 +295,13 @@ namespace ElGamalApp
                 : Color.FromArgb(160, 30, 30);
         }
 
-        // Miller-Rabin primality test — works correctly for large BigInteger primes
+        // Miller-Rabin primality test
         private bool IsPrime(BigInteger n, int witnesses = 10)
         {
             if (n < 2) return false;
             if (n == 2 || n == 3) return true;
             if (n % 2 == 0) return false;
 
-            // write n-1 as 2^r * d
             BigInteger d = n - 1;
             int r = 0;
             while (d % 2 == 0) { d /= 2; r++; }
@@ -225,7 +310,6 @@ namespace ElGamalApp
             {
                 for (int i = 0; i < witnesses; i++)
                 {
-                    // pick random a in [2, n-2]
                     BigInteger a;
                     byte[] bytes = new byte[n.ToByteArray().Length + 1];
                     do

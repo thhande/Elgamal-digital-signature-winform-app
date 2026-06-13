@@ -44,9 +44,11 @@
             this.btnSign = new System.Windows.Forms.Button();
             this.lblSignature = new System.Windows.Forms.Label();
             this.txtSignature = new System.Windows.Forms.TextBox();
+            this.btnSaveSignature = new System.Windows.Forms.Button();
 
             // Verifier tab controls
             this.grpVerify = new System.Windows.Forms.GroupBox();
+            this.btnLoadSignature = new System.Windows.Forms.Button();
             this.lblVerifyP = new System.Windows.Forms.Label();
             this.txtVerifyP = new System.Windows.Forms.TextBox();
             this.lblVerifyG = new System.Windows.Forms.Label();
@@ -72,32 +74,30 @@
             // ════════════════════════════════════════════════════════
             //  SIGNER TAB — grpKey
             // ════════════════════════════════════════════════════════
-            this.grpKey.SuspendLayout();
-            this.grpKey.Text = "Key Generation";
-            this.grpKey.Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold);
-            this.grpKey.Location = new System.Drawing.Point(10, 10);
-            this.grpKey.Size = new System.Drawing.Size(580, 185);
+            grpKey.SuspendLayout();
+            grpKey.Text = "Key Generation";
+            grpKey.Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold);
+            grpKey.Location = new System.Drawing.Point(10, 10);
+            grpKey.Size = new System.Drawing.Size(580, 185);
 
             SetLabel(lblP, "Prime  p", 14, 28);
-            SetTextBox(txtP, "23", 108, 25, 65);
+            SetTextBox(txtP, "23", 108, 25, 100);
 
-            SetLabel(lblG, "Generator  g", 200, 28);
-            SetTextBox(txtG, "5", 310, 25, 65);
+            SetLabel(lblG, "Generator  g", 230, 28);
+            SetTextBox(txtG, "5", 340, 25, 100);
 
             btnGenerateKey.Text = "Generate Keys";
-            btnGenerateKey.Location = new System.Drawing.Point(405, 22);
-            btnGenerateKey.Size = new System.Drawing.Size(155, 32);
+            btnGenerateKey.Location = new System.Drawing.Point(458, 22);
+            btnGenerateKey.Size = new System.Drawing.Size(108, 32);
             StyleBtn(btnGenerateKey, System.Drawing.Color.FromArgb(0, 120, 215));
             btnGenerateKey.Click += new System.EventHandler(this.btnGenerateKey_Click);
 
-            // private key + public key output row
             SetLabel(lblPrivateKey, "Private key  x  (secret)", 14, 72);
-            SetReadonlyBox(txtPrivateKey, 185, 69, 120);
+            SetReadonlyBox(txtPrivateKey, 185, 69, 175);
 
-            SetLabel(lblPublicKeyOut, "Public key  y  (share)", 330, 72);
-            SetReadonlyBox(txtPublicKeyOut, 490, 69, 75);
+            SetLabel(lblPublicKeyOut, "Public key  y  (share)", 378, 72);
+            SetReadonlyBox(txtPublicKeyOut, 510, 69, 56);
 
-            // formula + hint
             lblKeyFormula.Location = new System.Drawing.Point(14, 112);
             lblKeyFormula.Size = new System.Drawing.Size(550, 20);
             lblKeyFormula.Font = new System.Drawing.Font("Consolas", 8.5f);
@@ -124,17 +124,17 @@
             grpSign.Text = "Sign Message";
             grpSign.Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold);
             grpSign.Location = new System.Drawing.Point(10, 208);
-            grpSign.Size = new System.Drawing.Size(580, 185);
+            grpSign.Size = new System.Drawing.Size(580, 210);
             grpSign.Enabled = false;
 
             SetLabel(lblSignKeyP, "p", 14, 28);
-            SetTextBox(txtSignKeyP, "", 40, 25, 65);
+            SetTextBox(txtSignKeyP, "", 40, 25, 100);
 
-            SetLabel(lblSignKeyG, "g", 130, 28);
-            SetTextBox(txtSignKeyG, "", 155, 25, 65);
+            SetLabel(lblSignKeyG, "g", 160, 28);
+            SetTextBox(txtSignKeyG, "", 185, 25, 100);
 
-            SetLabel(lblSignKeyX, "x  (private key)", 245, 28);
-            SetTextBox(txtSignKeyX, "", 370, 25, 90);
+            SetLabel(lblSignKeyX, "x  (private key)", 305, 28);
+            SetTextBox(txtSignKeyX, "", 430, 25, 136);
 
             SetLabel(lblMessage, "Message", 14, 72);
             SetTextBox(txtMessage, "", 100, 69, 360);
@@ -149,11 +149,25 @@
             SetLabel(lblSignature, "Signature", 14, 118);
             SetReadonlyBox(txtSignature, 100, 115, 466);
 
+            // Save signature file button
+            btnSaveSignature.Text = "💾  Save Signature File";
+            btnSaveSignature.Location = new System.Drawing.Point(14, 155);
+            btnSaveSignature.Size = new System.Drawing.Size(552, 36);
+            btnSaveSignature.Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold);
+            btnSaveSignature.BackColor = System.Drawing.Color.FromArgb(230, 230, 230);
+            btnSaveSignature.ForeColor = System.Drawing.Color.FromArgb(50, 50, 50);
+            btnSaveSignature.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnSaveSignature.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(180, 180, 180);
+            btnSaveSignature.Cursor = System.Windows.Forms.Cursors.Hand;
+            btnSaveSignature.Enabled = false;
+            btnSaveSignature.Click += new System.EventHandler(this.btnSaveSignature_Click);
+
             grpSign.Controls.AddRange(new System.Windows.Forms.Control[] {
                 lblSignKeyP, txtSignKeyP, lblSignKeyG, txtSignKeyG,
                 lblSignKeyX, txtSignKeyX,
                 lblMessage, txtMessage, btnSign,
-                lblSignature, txtSignature
+                lblSignature, txtSignature,
+                btnSaveSignature
             });
             grpSign.ResumeLayout(false);
 
@@ -170,35 +184,56 @@
             grpVerify.Text = "Verify Signature";
             grpVerify.Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold);
             grpVerify.Location = new System.Drawing.Point(10, 10);
-            grpVerify.Size = new System.Drawing.Size(580, 280);
+            grpVerify.Size = new System.Drawing.Size(580, 340);
 
-            SetLabel(lblVerifyP, "p", 14, 30);
-            SetTextBox(txtVerifyP, "", 40, 27, 80);
+            // Load file button — top of verifier
+            btnLoadSignature.Text = "📂  Load Signature File (.elg)";
+            btnLoadSignature.Location = new System.Drawing.Point(14, 28);
+            btnLoadSignature.Size = new System.Drawing.Size(552, 36);
+            btnLoadSignature.Font = new System.Drawing.Font("Segoe UI", 9.5f, System.Drawing.FontStyle.Bold);
+            btnLoadSignature.BackColor = System.Drawing.Color.FromArgb(0, 120, 215);
+            btnLoadSignature.ForeColor = System.Drawing.Color.White;
+            btnLoadSignature.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnLoadSignature.FlatAppearance.BorderSize = 0;
+            btnLoadSignature.Cursor = System.Windows.Forms.Cursors.Hand;
+            btnLoadSignature.Click += new System.EventHandler(this.btnLoadSignature_Click);
 
-            SetLabel(lblVerifyG, "g", 145, 30);
-            SetTextBox(txtVerifyG, "", 170, 27, 80);
+            // divider label
+            var lblOr = new System.Windows.Forms.Label();
+            lblOr.Text = "— or enter manually —";
+            lblOr.Location = new System.Drawing.Point(14, 76);
+            lblOr.Size = new System.Drawing.Size(550, 18);
+            lblOr.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            lblOr.Font = new System.Drawing.Font("Segoe UI", 8f, System.Drawing.FontStyle.Italic);
+            lblOr.ForeColor = System.Drawing.Color.Gray;
 
-            SetLabel(lblVerifyY, "y  (public key)", 275, 30);
-            SetTextBox(txtVerifyY, "", 395, 27, 100);
+            SetLabel(lblVerifyP, "p", 14, 106);
+            SetTextBox(txtVerifyP, "", 40, 103, 100);
 
-            SetLabel(lblVerifyMessage, "Message", 14, 75);
-            SetTextBox(txtVerifyMessage, "", 100, 72, 466);
+            SetLabel(lblVerifyG, "g", 160, 106);
+            SetTextBox(txtVerifyG, "", 185, 103, 100);
+
+            SetLabel(lblVerifyY, "y  (public key)", 305, 106);
+            SetTextBox(txtVerifyY, "", 430, 103, 136);
+
+            SetLabel(lblVerifyMessage, "Message", 14, 150);
+            SetTextBox(txtVerifyMessage, "", 100, 147, 466);
             txtVerifyMessage.Font = new System.Drawing.Font("Segoe UI", 9.5f);
 
-            SetLabel(lblVerifyR, "R", 14, 120);
-            SetTextBox(txtVerifyR, "", 40, 117, 200);
+            SetLabel(lblVerifyR, "R", 14, 194);
+            SetTextBox(txtVerifyR, "", 40, 191, 230);
 
-            SetLabel(lblVerifyS, "S", 265, 120);
-            SetTextBox(txtVerifyS, "", 290, 117, 200);
+            SetLabel(lblVerifyS, "S", 290, 194);
+            SetTextBox(txtVerifyS, "", 315, 191, 155);
 
             btnVerify.Text = "Verify";
-            btnVerify.Location = new System.Drawing.Point(505, 113);
-            btnVerify.Size = new System.Drawing.Size(60, 32);
+            btnVerify.Location = new System.Drawing.Point(484, 187);
+            btnVerify.Size = new System.Drawing.Size(82, 32);
             StyleBtn(btnVerify, System.Drawing.Color.FromArgb(100, 60, 180));
             btnVerify.Click += new System.EventHandler(this.btnVerify_Click);
 
-            panelVerifyResult.Location = new System.Drawing.Point(14, 165);
-            panelVerifyResult.Size = new System.Drawing.Size(550, 42);
+            panelVerifyResult.Location = new System.Drawing.Point(14, 238);
+            panelVerifyResult.Size = new System.Drawing.Size(552, 42);
             panelVerifyResult.Visible = false;
 
             lblVerifyResult.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -207,6 +242,7 @@
             panelVerifyResult.Controls.Add(lblVerifyResult);
 
             grpVerify.Controls.AddRange(new System.Windows.Forms.Control[] {
+                btnLoadSignature, lblOr,
                 lblVerifyP, txtVerifyP, lblVerifyG, txtVerifyG,
                 lblVerifyY, txtVerifyY,
                 lblVerifyMessage, txtVerifyMessage,
@@ -215,6 +251,7 @@
             });
             grpVerify.ResumeLayout(false);
 
+            // Verifier tab page
             tabVerifier.Text = "  Verifier  ";
             tabVerifier.Font = new System.Drawing.Font("Segoe UI", 9.5f);
             tabVerifier.Padding = new System.Windows.Forms.Padding(4);
@@ -222,7 +259,7 @@
 
             // TabControl
             tabControl.Location = new System.Drawing.Point(10, 55);
-            tabControl.Size = new System.Drawing.Size(610, 480);
+            tabControl.Size = new System.Drawing.Size(610, 530);
             tabControl.TabPages.Add(tabSigner);
             tabControl.TabPages.Add(tabVerifier);
             tabControl.Font = new System.Drawing.Font("Segoe UI", 9.5f);
@@ -257,7 +294,7 @@
 
             // Form
             this.Text = "ElGamal Digital Signature";
-            this.ClientSize = new System.Drawing.Size(632, 578);
+            this.ClientSize = new System.Drawing.Size(632, 630);
             this.Font = new System.Drawing.Font("Segoe UI", 9f);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -322,8 +359,10 @@
         private System.Windows.Forms.Label lblMessage, lblSignature;
         private System.Windows.Forms.TextBox txtMessage, txtSignature;
         private System.Windows.Forms.Button btnSign;
+        private System.Windows.Forms.Button btnSaveSignature;
 
         private System.Windows.Forms.GroupBox grpVerify;
+        private System.Windows.Forms.Button btnLoadSignature;
         private System.Windows.Forms.Label lblVerifyP, lblVerifyG, lblVerifyY;
         private System.Windows.Forms.TextBox txtVerifyP, txtVerifyG, txtVerifyY;
         private System.Windows.Forms.Label lblVerifyMessage, lblVerifyR, lblVerifyS;
