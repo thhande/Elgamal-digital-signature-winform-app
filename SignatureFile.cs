@@ -4,67 +4,134 @@ using System.Text;
 
 namespace ElGamalApp
 {
-    // Simple JSON serializer/deserializer — no third-party libs needed
-    class SignatureFile
+    // ── Public Key file (.pub) — shared with verifier ───────────────────
+    // Contains: p, g, y
+    class PublicKeyFile
     {
         public string P { get; set; }
         public string G { get; set; }
         public string Y { get; set; }
-        public string Message { get; set; }
-        public string R { get; set; }
-        public string S { get; set; }
 
-        // ── Serialize to JSON manually ───────────────────────────────
         public string ToJson()
         {
             var sb = new StringBuilder();
             sb.AppendLine("{");
-            sb.AppendLine(string.Format("  \"p\": \"{0}\",", Escape(P)));
-            sb.AppendLine(string.Format("  \"g\": \"{0}\",", Escape(G)));
-            sb.AppendLine(string.Format("  \"y\": \"{0}\",", Escape(Y)));
-            sb.AppendLine(string.Format("  \"message\": \"{0}\",", Escape(Message)));
-            sb.AppendLine(string.Format("  \"r\": \"{0}\",", Escape(R)));
-            sb.AppendLine(string.Format("  \"s\": \"{0}\"", Escape(S)));
+            sb.AppendLine(string.Format("  \"p\": \"{0}\",", Json.Escape(P)));
+            sb.AppendLine(string.Format("  \"g\": \"{0}\",", Json.Escape(G)));
+            sb.AppendLine(string.Format("  \"y\": \"{0}\"", Json.Escape(Y)));
             sb.AppendLine("}");
             return sb.ToString();
         }
 
-        // ── Deserialize from JSON manually ───────────────────────────
-        public static SignatureFile FromJson(string json)
+        public static PublicKeyFile FromJson(string json)
         {
-            var file = new SignatureFile();
-            file.P = ExtractValue(json, "p");
-            file.G = ExtractValue(json, "g");
-            file.Y = ExtractValue(json, "y");
-            file.Message = ExtractValue(json, "message");
-            file.R = ExtractValue(json, "r");
-            file.S = ExtractValue(json, "s");
-
-            if (string.IsNullOrEmpty(file.P) || string.IsNullOrEmpty(file.G) ||
-                string.IsNullOrEmpty(file.Y) || string.IsNullOrEmpty(file.Message) ||
-                string.IsNullOrEmpty(file.R) || string.IsNullOrEmpty(file.S))
+            var f = new PublicKeyFile
             {
-                throw new FormatException("Invalid or incomplete .elg file.");
-            }
+                P = Json.ExtractValue(json, "p"),
+                G = Json.ExtractValue(json, "g"),
+                Y = Json.ExtractValue(json, "y")
+            };
 
-            return file;
+            if (string.IsNullOrEmpty(f.P) || string.IsNullOrEmpty(f.G) || string.IsNullOrEmpty(f.Y))
+                throw new FormatException("Invalid or incomplete public key file.");
+
+            return f;
         }
 
-        public void SaveToFile(string path)
+        public void SaveToFile(string path) { File.WriteAllText(path, ToJson(), Encoding.UTF8); }
+        public static PublicKeyFile LoadFromFile(string path) { return FromJson(File.ReadAllText(path, Encoding.UTF8)); }
+    }
+
+    // ── Private Key file (.key) — kept secret by signer ─────────────────
+    // Contains: p, g, x
+    class PrivateKeyFile
+    {
+        public string P { get; set; }
+        public string G { get; set; }
+        public string X { get; set; }
+
+        public string ToJson()
         {
-            File.WriteAllText(path, ToJson(), Encoding.UTF8);
+            var sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine(string.Format("  \"p\": \"{0}\",", Json.Escape(P)));
+            sb.AppendLine(string.Format("  \"g\": \"{0}\",", Json.Escape(G)));
+            sb.AppendLine(string.Format("  \"x\": \"{0}\"", Json.Escape(X)));
+            sb.AppendLine("}");
+            return sb.ToString();
         }
 
-        public static SignatureFile LoadFromFile(string path)
+        public static PrivateKeyFile FromJson(string json)
         {
-            string json = File.ReadAllText(path, Encoding.UTF8);
-            return FromJson(json);
+            var f = new PrivateKeyFile
+            {
+                P = Json.ExtractValue(json, "p"),
+                G = Json.ExtractValue(json, "g"),
+                X = Json.ExtractValue(json, "x")
+            };
+
+            if (string.IsNullOrEmpty(f.P) || string.IsNullOrEmpty(f.G) || string.IsNullOrEmpty(f.X))
+                throw new FormatException("Invalid or incomplete private key file.");
+
+            return f;
         }
 
-        // ── Helpers ──────────────────────────────────────────────────
+        public void SaveToFile(string path) { File.WriteAllText(path, ToJson(), Encoding.UTF8); }
+        public static PrivateKeyFile LoadFromFile(string path) { return FromJson(File.ReadAllText(path, Encoding.UTF8)); }
+    }
 
-        // Extracts value from: "key": "value"
-        private static string ExtractValue(string json, string key)
+    // ── Message file (.msg) — the plain message text ────────────────────
+    class MessageFile
+    {
+        public static void SaveToFile(string path, string message)
+        {
+            File.WriteAllText(path, message, Encoding.UTF8);
+        }
+
+        public static string LoadFromFile(string path)
+        {
+            return File.ReadAllText(path, Encoding.UTF8);
+        }
+    }
+
+    // ── Signature file (.sig) — R and S only ────────────────────────────
+    class SignatureOnlyFile
+    {
+        public string R { get; set; }
+        public string S { get; set; }
+
+        public string ToJson()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine(string.Format("  \"r\": \"{0}\",", Json.Escape(R)));
+            sb.AppendLine(string.Format("  \"s\": \"{0}\"", Json.Escape(S)));
+            sb.AppendLine("}");
+            return sb.ToString();
+        }
+
+        public static SignatureOnlyFile FromJson(string json)
+        {
+            var f = new SignatureOnlyFile
+            {
+                R = Json.ExtractValue(json, "r"),
+                S = Json.ExtractValue(json, "s")
+            };
+
+            if (string.IsNullOrEmpty(f.R) || string.IsNullOrEmpty(f.S))
+                throw new FormatException("Invalid or incomplete signature file.");
+
+            return f;
+        }
+
+        public void SaveToFile(string path) { File.WriteAllText(path, ToJson(), Encoding.UTF8); }
+        public static SignatureOnlyFile LoadFromFile(string path) { return FromJson(File.ReadAllText(path, Encoding.UTF8)); }
+    }
+
+    // ── Shared minimal JSON helper ───────────────────────────────────────
+    static class Json
+    {
+        public static string ExtractValue(string json, string key)
         {
             string search = string.Format("\"{0}\"", key);
             int keyIndex = json.IndexOf(search, StringComparison.OrdinalIgnoreCase);
@@ -89,8 +156,7 @@ namespace ElGamalApp
             return Unescape(json.Substring(openQuote + 1, closeQuote - openQuote - 1));
         }
 
-        // Escapes special characters for JSON strings
-        private static string Escape(string s)
+        public static string Escape(string s)
         {
             if (s == null) return "";
             return s.Replace("\\", "\\\\")
@@ -100,7 +166,6 @@ namespace ElGamalApp
                     .Replace("\t", "\\t");
         }
 
-        // Unescapes JSON string values
         private static string Unescape(string s)
         {
             if (s == null) return "";

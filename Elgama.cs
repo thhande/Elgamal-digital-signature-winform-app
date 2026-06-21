@@ -33,6 +33,20 @@ namespace ElGamalApp
         }
     }
 
+    enum VerificationStatus
+    {
+        Valid,
+        InvalidSignatureValues,   // R hoặc S nằm ngoài phạm vi hợp lệ (có thể xác định chắc chắn)
+        VerificationFailed        // Phương trình thất bại — không thể biết thành phần nào bị sửa
+    }
+
+    class VerificationResult
+    {
+        public bool IsValid { get; set; }
+        public VerificationStatus Status { get; set; }
+        public string Message { get; set; }
+    }
+
     class ElGamal
     {
         // ── Key Generation ───────────────────────────────────────────────
@@ -100,6 +114,98 @@ namespace ElGamalApp
             BigInteger rhs = BigInteger.ModPow(y, r, p) * BigInteger.ModPow(r, s, p) % p;
 
             return lhs == rhs;
+        }
+
+        // ── Detailed Verification ────────────────────────────────────────
+        // ElGamal verification checks: g^h ≡ y^R · R^S (mod p)
+        //
+        // IMPORTANT: It is mathematically IMPOSSIBLE to determine from the
+        // equation alone whether the message, the key (y), or the signature
+        // (R/S) was tampered with — all three appear in one equation and any
+        // one of them being wrong produces the same result (LHS ≠ RHS).
+        //
+        // What we CAN detect reliably:
+        //   1. R is structurally out of range (R ≤ 0 or R ≥ p) — this is a
+        //      hard mathematical constraint, not a guess.
+        //   2. S is structurally out of range (S ≤ 0 or S ≥ p-1) — same.
+        //   3. The full equation fails — meaning at least one of {message,
+        //      key, signature} does not match what was used when signing.
+        //
+        // We do NOT attempt to guess which component was tampered with from
+        // the equation result alone, as that would be unreliable.
+        public VerificationResult DiagnoseVerification(string message, Signature signature, Key key)
+        {
+            BigInteger p = key.P;
+            BigInteger g = key.G;
+            BigInteger y = key.Y;
+            BigInteger r = signature.R;
+            BigInteger s = signature.S;
+
+            // ── Step 1: Hard structural checks on R and S ─────────────────
+            // These are cheap and definitive — values outside range can NEVER
+            // have been produced by a valid signing operation.
+            bool rOutOfRange = (r <= 0 || r >= p);
+            bool sOutOfRange = (s <= 0 || s >= p - 1);
+
+            if (rOutOfRange || sOutOfRange)
+            {
+                string detail = "";
+                if (rOutOfRange && sOutOfRange)
+                    detail = "Cả R lẫn S đều nằm ngoài phạm vi hợp lệ.";
+                else if (rOutOfRange)
+                    detail = string.Format("R = {0} nằm ngoài phạm vi hợp lệ (cần: 0 < R < p).", r);
+                else
+                    detail = string.Format("S = {0} nằm ngoài phạm vi hợp lệ (cần: 0 < S < p-1).", s);
+
+                return new VerificationResult
+                {
+                    IsValid = false,
+                    Status = VerificationStatus.InvalidSignatureValues,
+                    Message =
+                        "Chữ ký KHÔNG HỢP LỆ — Cấu trúc chữ ký sai.\n\n" +
+                        detail + "\n\n" +
+                        "Một chữ ký hợp lệ luôn phải có:\n" +
+                        "  • 0 < R < p\n" +
+                        "  • 0 < S < p-1\n\n" +
+                        "Kết luận: Giá trị R hoặc S chắc chắn đã bị sửa đổi hoặc nhập sai."
+                };
+            }
+
+            // ── Step 2: Verify the equation ───────────────────────────────
+            BigInteger h = HashMessage(message, p);
+            BigInteger lhs = BigInteger.ModPow(g, h, p);
+            BigInteger rhs = BigInteger.ModPow(y, r, p) * BigInteger.ModPow(r, s, p) % p;
+
+            if (lhs == rhs)
+            {
+                return new VerificationResult
+                {
+                    IsValid = true,
+                    Status = VerificationStatus.Valid,
+                    Message = "Chữ ký HỢP LỆ — thông điệp xác thực và chưa bị sửa đổi."
+                };
+            }
+
+            // ── Step 3: Equation failed — report honestly ─────────────────
+            // We cannot determine which component was tampered with.
+            // All three (message, public key y, signature R/S) feed into one
+            // equation. Any one of them being wrong gives the same failure.
+            return new VerificationResult
+            {
+                IsValid = false,
+                Status = VerificationStatus.VerificationFailed,
+                Message =
+                    "Chữ ký KHÔNG HỢP LỆ.\n\n" +
+                    "Phương trình xác minh thất bại:\n" +
+                    "  g^h mod p        = " + lhs + "\n" +
+                    "  y^R · R^S mod p  = " + rhs + "\n\n" +
+                    "Có thể do một trong các nguyên nhân sau:\n" +
+                    "  • Thông điệp đã bị thay đổi sau khi ký\n" +
+                    "  • Khoá công khai (p, g, y) không khớp với khoá đã dùng để ký\n" +
+                    "  • Giá trị chữ ký R hoặc S đã bị sửa đổi\n\n" +
+                    "Về mặt toán học, không thể xác định chính xác thành phần nào\n" +
+                    "bị sửa chỉ từ kết quả phương trình này."
+            };
         }
 
         // ── Helpers ──────────────────────────────────────────────────────
@@ -175,4 +281,3 @@ namespace ElGamalApp
 
 
 }
-
